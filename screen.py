@@ -55,7 +55,9 @@ def read_ui(read) -> dict:
         # other boxes (HUD, money) carry no decision
     if not menus:
         menus = _loose_menu(tiles)
-    return {"dialogue": dialogue, "menu": menus[-1] if menus else None,
+    # the move list draws a « TYPE/ » box over its own corner, so it is never seen as a menu above
+    move_list = any("TYPE/" in _text(row) for row in tiles[8:11])
+    return {"dialogue": dialogue, "menu": menus[-1] if menus else None, "liste_attaques": move_list,
             "quantite": None if menus else _quantity(tiles)}
 
 

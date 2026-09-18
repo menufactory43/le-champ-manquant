@@ -1,6 +1,11 @@
 <!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><title>Jev joue à Pokémon</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Un modèle qui ne sait que choisir parmi des options joue à Pokémon Bleu, en direct : chaque pas, ses cotes, le chat et le changelog du harnais.">
+<meta property="og:type" content="website"><meta property="og:title" content="Jev joue à Pokémon Bleu">
+<meta property="og:description" content="Un modèle qui ne sait que choisir parmi des options joue à Pokémon Bleu, en direct : chaque pas, ses cotes, le chat et le changelog du harnais.">
+<meta property="og:image" content="/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta property="og:url" content="/"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="/og.png">
 <style>
 :root{color-scheme:light;--page:#f4f2ed;--panneau:#fcfbf8;--encre:#1b1b18;--encre-2:#52514e;--sourdine:#87857c;
   --filet:#e4e2d9;--cadre:rgba(27,27,24,.32);--s1:#2a78d6;--s4:#b97e00;--bon:#106e10;--crit:#b32d2d}
@@ -13,7 +18,8 @@ body{margin:0;background:var(--page);color:var(--encre);font:12.5px/1.55 "SF Mon
 header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 22px;margin-bottom:18px}
 h1{font-size:15px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;margin:0}
 header .k{font-size:11.5px;color:var(--sourdine)} header .k b{color:var(--encre);font-weight:700;font-variant-numeric:tabular-nums}
-.badge{margin-left:auto;border:1px solid var(--cadre);border-radius:3px;padding:1px 7px;font-size:10px;letter-spacing:.12em;color:var(--bon)}
+#lang{margin-left:auto;font-size:11px;letter-spacing:.12em;color:var(--encre-2);text-decoration:none;border-bottom:1px dashed var(--cadre)}#lang:hover{color:var(--encre)}#en-note{margin:-10px 0 14px;font-size:11.5px;flex:none}
+.badge{border:1px solid var(--cadre);border-radius:3px;padding:1px 7px;font-size:10px;letter-spacing:.12em;color:var(--bon)}
 .grille{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1.1fr) minmax(0,1fr);gap:18px;flex:1;min-height:0}
 .col{display:flex;flex-direction:column;gap:18px;min-width:0;min-height:0}
 .cadre{flex:none}.cadre>pre{overflow:hidden}.cadre.plein{flex:1;min-height:0;display:flex;flex-direction:column;overflow:visible}
@@ -54,19 +60,43 @@ button::before{content:"◇ ";color:var(--sourdine)} button:hover{color:var(--en
 .eclat{animation:eclat 1.2s ease-out both}
 .pouls{animation:pouls 1s ease-in-out infinite}
 #odds .ligne{transition:color .18s ease-out}
+#odds{transition:opacity .25s ease-out}
+#odds.passe{opacity:.38}
+#avance{display:block;white-space:pre;margin:-2px 0 6px}
 @media (prefers-reduced-motion:reduce){.neuf,.eclat,.pouls{animation:none}#odds .ligne{transition:none}}
+#open-log{margin-left:4px}
+#maj{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--panneau);border:1px dashed var(--cadre);padding:8px 12px;display:flex;gap:10px;align-items:center;z-index:6}
+#log{position:fixed;inset:0 0 0 auto;width:min(560px,100vw);background:var(--page);border-left:1px dashed var(--cadre);padding:22px 24px;overflow:auto;transform:translateX(100%);transition:transform .24s cubic-bezier(.215,.61,.355,1);z-index:5}
+#log.ouvert{transform:none;box-shadow:-24px 0 60px rgba(0,0,0,.18)}
+#log h2{font-size:12px;letter-spacing:.16em;text-transform:uppercase;margin:0 0 4px}
+#log article{padding:14px 0;border-top:1px dashed var(--cadre)}
+#log h3{font-size:13px;margin:2px 0 6px;color:var(--s4)}
+#log p{margin:0 0 6px;white-space:normal}
+@media (prefers-reduced-motion:reduce){#log{transition:none}}
+#chat-box{flex:1.2}
+#chat{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;white-space:normal;scrollbar-width:thin}
+#chat p{margin:0 0 3px;overflow-wrap:anywhere}#chat p b{color:var(--s1);font-weight:700}#chat p.hote b{color:var(--s4)}
+#chat p button{border:0;padding:0 0 0 6px;background:none;color:var(--crit);letter-spacing:0;text-transform:none}#chat p button::before{content:""}
+#chat-form{margin-top:8px}#chat-name{flex:0 0 11ch}
+#chat-note{min-height:1.55em;font-size:11.5px}
+#chat:empty::before{content:"Personne n'a encore rien dit.";color:var(--sourdine)}
+@media (max-width:759px){html,body{height:auto;overflow:auto}.page{height:auto}.cadre.plein{height:60vh}
+  .col{display:contents}.grille>*,.col>*{order:4}#jeu-box{order:1;height:auto}#jeu-box #screen{flex:none;height:auto;aspect-ratio:10/9}
+  #chat-box{order:2;height:auto}#chat{flex:none;max-height:34vh}.col>figure:has(#dialogue){order:3}}
 </style></head><body><div class="page">
 <header><h1>Jev joue à Pokémon Bleu</h1>
  <span class="k">joué <b id="s-time">0 s</b></span><span class="k">cartes <b id="s-maps">0</b></span>
  <span class="k">coût total <b id="s-cost">0 $</b></span>
- <span class="k" id="s-fix-wrap">correctifs auto du harnais <b id="s-fix">0</b></span>
+ <button type="button" id="open-log">changelog du harnais <b id="s-fix">0</b></button>
  <span class="k" id="s-view-wrap" hidden>spectateurs <b id="s-view">0</b></span>
+ <a id="lang" href="?lang=en" title="Français / English">EN</a>
  <span class="badge" id="live">● EN DIRECT</span></header>
+<p id="en-note" class="sourdine" hidden>Jev plays the French cartridge: game text, his options and his objectives are shown exactly as he reads them — in French.</p>
 <div class="grille">
  <div class="col">
-  <figure class="cadre plein"><i>+</i><i>+</i><i>+</i><i>+</i><figcaption class="titre">[ Jeu ] <small id="where"></small></figcaption>
+  <figure class="cadre plein" id="jeu-box"><i>+</i><i>+</i><i>+</i><i>+</i><figcaption class="titre">[ Jeu ] <small id="where"></small></figcaption>
    <canvas id="screen" width="480" height="432" aria-label="écran du jeu"></canvas>
-   <form id="goal-form"><input id="goal" placeholder="forcer un sous-objectif…"><button>fixer</button><button type="button" id="pause">pause</button><button type="button" id="speed">vitesse ×1</button></form></figure>
+   <form id="goal-form"><input id="goal" placeholder="forcer un sous-objectif…"><button>fixer</button><button type="button" id="pause">pause</button><button type="button" id="speed">vitesse ×1</button><button type="button" id="reload">recharger le harnais</button></form></figure>
   <figure class="cadre"><i>+</i><i>+</i><i>+</i><i>+</i><figcaption class="titre">[ Dernier dialogue ]</figcaption><pre id="dialogue" class="bon">—</pre></figure>
  </div>
  <div class="col">
@@ -80,18 +110,51 @@ button::before{content:"◇ ";color:var(--sourdine)} button:hover{color:var(--en
    <figure class="cadre"><i>+</i><i>+</i><i>+</i><i>+</i><figcaption class="titre">[ Claude ]</figcaption><pre id="claude">—</pre></figure>
   </div>
   <figure class="cadre plein"><i>+</i><i>+</i><i>+</i><i>+</i><figcaption class="titre">[ Journal ]</figcaption><pre id="journal"></pre></figure>
+  <figure class="cadre plein" id="chat-box" hidden><i>+</i><i>+</i><i>+</i><i>+</i><figcaption class="titre">[ Chat ] <small>Jev ne le lit pas</small></figcaption>
+   <div id="chat" role="log" aria-live="polite"></div><div id="chat-note" class="sourdine"></div>
+   <form id="chat-form"><input id="chat-name" maxlength="20" placeholder="pseudo" aria-label="pseudo"><input id="chat-text" maxlength="200" placeholder="dire quelque chose…" aria-label="message" autocomplete="off"><button>envoyer</button></form></figure>
  </div>
 </div></div>
+<aside id="log" aria-label="Changelog du harnais"><button type="button" id="close-log" style="float:right">fermer</button>
+<h2>[ Changelog du harnais ]</h2><p class="sourdine">Ce que le journal de la partie montrait, et comment le harnais autour de Jev a changé. Les entrées « réparateur » sont écrites et fusionnées sans intervention humaine.</p><div id="log-body"></div></aside>
 <script>
+// Two languages, one page. Jev plays the French cartridge: game text, his options and objectives stay exactly as he reads them.
+const LANG=(()=>{const q=new URLSearchParams(location.search).get('lang'),path=/^\/en\b/.test(location.pathname)?'en':null;let kept=null;try{kept=localStorage.getItem('jev-lang')}catch(_){}
+  const l=q||path||kept||((navigator.language||'fr').toLowerCase().startsWith('fr')?'fr':'en'); if(q||path)try{localStorage.setItem('jev-lang',l)}catch(_){} return l==='en'?'en':'fr'})();
+const EN={'Jev joue à Pokémon Bleu':'Jev plays Pokémon Blue','joué':'played','cartes':'maps','coût total':'total cost','changelog du harnais':'harness changelog','spectateurs':'viewers',
+ '[ Jeu ]':'[ Game ]','[ Dernier dialogue ]':'[ Last dialogue ]','[ Objectif ]':'[ Objective ]','[ Cotes de Jev ]':'[ Jev\'s odds ]','[ Dresseur · Équipe ]':'[ Trainer · Team ]','[ Journal ]':'[ Log ]','[ Chat ]':'[ Chat ]',
+ 'Jev ne le lit pas':'Jev does not read it','envoyer':'send','pseudo':'name','dire quelque chose…':'say something…','message':'message','fermer':'close','fixer':'set','pause':'pause','vitesse ×1':'speed ×1','recharger le harnais':'reload harness','forcer un sous-objectif…':'force a sub-goal…',
+ '[ Changelog du harnais ]':'[ Harness changelog ]','Changelog du harnais':'Harness changelog','écran du jeu':'game screen','en attente…':'waiting…',
+ 'Ce que le journal de la partie montrait, et comment le harnais autour de Jev a changé. Les entrées « réparateur » sont écrites et fusionnées sans intervention humaine.':'What the run\'s log showed, and how the harness around Jev changed. “repairer” entries are written and merged with no human involved.',
+ 'décision précédente · ':'previous decision · ','le jeu déroule le texte du combat, Jev n\'a rien à choisir':'the game is playing out battle text, Jev has nothing to choose','le jeu déroule son texte, Jev n\'a rien à choisir':'the game is playing out its text, Jev has nothing to choose',
+ 'bouton':'button',' · ⟲ blocage':' · ⟲ stall','badges':'badges','sac':'bag','vide':'empty','adversaire':'opponent','mode':'mode','menu':'menu','exploration':'exploring','aucun Pokémon':'no Pokémon','PV':'HP','N':'L',
+ 'décisions':'decisions','coût':'cost','par décis.':'per decis.','tokens':'tokens','latence':'latency','blocages':'stalls','modèle':'model',' échec(s)':' failure(s)','désactivé':'off',
+ 'jalon « ':'milestone “',' » jugé par Jev · ':'” judged by Jev · ','formulé par ':'worded by ','le carnet (gratuit)':'the notebook (free)','leçon : ':'lesson: ','zone visée ':'target area ',
+ 'Nouvelle version de la page. ':'New version of the page. ','recharger':'reload','plus tard':'later','● EN DIRECT':'● LIVE','○ HORS LIGNE':'○ OFFLINE','○ JEV INJOIGNABLE':'○ JEV UNREACHABLE','◐ HARNAIS AVEUGLE':'◐ HARNESS BLIND',
+ 'réparateur':'repairer','à la main':'by hand',' · cas ':' · case ','Ce que le journal montrait — ':'What the log showed — ','Ce qui a changé — ':'What changed — ','Aucun correctif pour l\'instant.':'No fix yet.',
+ '   en cours ':'   running ',' : situation non décrite, touches brutes':': situation not described, raw buttons','Chat déconnecté, nouvel essai en cours…':'Chat disconnected, retrying…',
+ 'Tu ne peux plus écrire ici.':'You can no longer write here.','Ce pseudo est réservé.':'That name is reserved.','Pas de lien dans le chat.':'No links in the chat.','Doucement : un message toutes les deux secondes.':'Easy: one message every two seconds.','Doucement : huit messages par minute au plus.':'Easy: eight messages a minute at most.','Le chat déborde, réessaie dans un instant.':'The chat is overflowing, try again in a moment.'};
+const T=s=>LANG==='en'?(EN[s]??s):s, LOC=LANG==='en'?'en-GB':'fr-FR';
+(function localize(){ document.documentElement.lang=LANG;
+  const flip=document.getElementById('lang'),q=new URLSearchParams(location.search);q.set('lang',LANG==='en'?'fr':'en');flip.textContent=LANG==='en'?'FR':'EN';flip.href=(location.pathname.replace(/^\/en\b\/?/,'/')||'/')+'?'+q;
+  if(LANG!=='en')return; document.title=T('Jev joue à Pokémon Bleu'); document.getElementById('en-note').hidden=false;
+  const walk=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT); for(let n;n=walk.nextNode();){const k=n.nodeValue.trim(); if(k&&EN[k]&&n.parentNode.nodeName!=='SCRIPT')n.nodeValue=n.nodeValue.replace(k,EN[k])}
+  for(const el of document.querySelectorAll('[placeholder],[aria-label]'))for(const a of ['placeholder','aria-label'])if(EN[el.getAttribute(a)])el.setAttribute(a,EN[el.getAttribute(a)]);
+  document.head.insertAdjacentHTML('beforeend','<style>#chat:empty::before{content:"Nobody has said anything yet."}</style>')})();
 const $=id=>document.getElementById(id), esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const bar=(p,w=14)=>'█'.repeat(Math.round(p*w))+'░'.repeat(w-Math.round(p*w));
 const calm=matchMedia('(prefers-reduced-motion:reduce)').matches;
 let oddsRun=0;
+let lastMeta='';
+function stale(why){ // the harness is acting on its own: say so, and fade the previous decision
+  $('odds').classList.add('passe'); $('dec-meta').textContent=T('décision précédente · ')+T(why);
+}
 function odds(c){ // three beats: the odds fill up, then Jev's pick lights up, then the move plays on screen
   const rows=Object.entries(c.cotes).sort((a,b)=>b[1]-a[1]), w=Math.max(...rows.map(r=>r[0].length))+2, run=++oddsRun;
   const draw=(t,picked)=>{$('odds').innerHTML=rows.map(([k,p])=>{const on=picked&&k===c.bouton;
-    return `<span class="ligne ${on?'choisi':''}">${on?'▶':' '} ${esc(k.padEnd(w))}${bar(p*t)} ${fr(p*t*100,1).padStart(5)} %</span>\n<span class="desc">${esc(c.options[k]||'')}</span>`}).join('')};
-  $('dec-meta').textContent=`${c.ms} ms · ${c.pas} bouton${c.pas>1?'s':''}${c.bloque?' · ⟲ blocage':''}`;
+    return `<span class="ligne ${on?'choisi':''}">${on?'▶':' '} ${esc(k.padEnd(w))}${bar(p*t)} ${fr(p*t*100,1).padStart(5)} %</span>\n<span class="desc">${esc(c.options[k]||'')}</span>`+(on?'<span id="avance" class="choisi"></span>':'')}).join('')};
+  $('odds').classList.remove('passe');
+  $('dec-meta').textContent=`${c.ms} ms · ${c.pas} ${T('bouton')}${c.pas>1?'s':''}${c.bloque?T(' · ⟲ blocage'):''}`;
   if(calm){draw(1,true);return}
   const t0=performance.now(), tick=now=>{ if(run!==oddsRun)return; const x=Math.min(1,(now-t0)/260), ease=1-Math.pow(1-x,3);
     draw(ease,x>=1); if(x<1)requestAnimationFrame(tick)}; requestAnimationFrame(tick);
@@ -109,43 +172,59 @@ function goal(text,html){ // a new objective is rare and matters: type it out, f
   el.classList.remove('eclat'); void el.offsetWidth; el.classList.add('eclat');
   let i=0; const type=()=>{ if(run!==goalRun)return; i+=3; if(i>=text.length){el.innerHTML=html;return} el.textContent=text.slice(0,i)+'▌'; setTimeout(type,12)}; type();
 }
-const fr=(v,d)=>v.toFixed(d).replace('.',','), usd=v=>(v>0&&v<0.001?fr(v,5):v<10?fr(v,4):fr(v,2))+' $', kfmt=n=>n>=1e6?fr(n/1e6,2)+' M':n>=1e3?fr(n/1e3,1)+' k':String(n);
+const fr=(v,d)=>LANG==='en'?v.toFixed(d):v.toFixed(d).replace('.',','), usd=v=>{const n=v>0&&v<0.001?fr(v,5):v<10?fr(v,4):fr(v,2);return LANG==='en'?'$'+n:n+' $'}, kfmt=n=>n>=1e6?fr(n/1e6,2)+' M':n>=1e3?fr(n/1e3,1)+' k':String(n);
 const dur=s=>s>=3600?Math.floor(s/3600)+' h '+String(Math.floor(s%3600/60)).padStart(2,'0')+' min':s>=60?Math.floor(s/60)+' min '+String(s%60).padStart(2,'0')+' s':s+' s';
-const row=(k,v,cls='')=>`<span class="sourdine">${k.padEnd(11)}</span><span class="${cls}">${esc(v)}</span>`;
+const row=(k,v,cls='')=>`<span class="sourdine">${T(k).padEnd(11)}</span><span class="${cls}">${esc(v)}</span>`;
 function state(e){
   const s=e.etat, foe=s.combat&&s.combat.adversaire;
   $('where').textContent=`${s.carte} · (${s.position.x}, ${s.position.y})`;
   const team=s.equipe.map(m=>{const r=m.pv/Math.max(1,m.pv_max),cls=r>.5?'bon':r>.2?'choisi':'crit';
-    return `${esc(m.espece.padEnd(11))}<span class="sourdine">N${String(m.niveau).padEnd(3)}</span><span class="${cls}">${bar(r,10)}</span> ${String(m.pv).padStart(3)}/${m.pv_max}${m.statut?' <span class="crit">'+m.statut+'</span>':''}`});
+    return `${esc(m.espece.padEnd(11))}<span class="sourdine">${T('N')}${String(m.niveau).padEnd(3)}</span><span class="${cls}">${bar(r,10)}</span> ${String(m.pv).padStart(3)}/${m.pv_max}${m.statut?' <span class="crit">'+m.statut+'</span>':''}`});
   $('state').innerHTML=[row('badges','●'.repeat(s.badges.length)+'○'.repeat(8-s.badges.length)+'   '+s.argent+' ¥'),
-    row('sac',s.sac.map(i=>i.nom+'×'+i.quantite).join(', ')||'vide'),
-    foe?row('adversaire',`${foe.espece} N${foe.niveau} ${foe.pv}/${foe.pv_max} PV`,'crit'):row('mode',s.menu_ouvert?'menu':'exploration'),
-    ...(team.length?team:['<span class="sourdine">aucun Pokémon</span>'])].join('\n');
+    row('sac',s.sac.map(i=>i.nom+'×'+i.quantite).join(', ')||T('vide')),
+    foe?row('adversaire',`${foe.espece} ${T('N')}${foe.niveau} ${foe.pv}/${foe.pv_max} ${T('PV')}`,'crit'):row('mode',T(s.menu_ouvert?'menu':'exploration')),
+    ...(team.length?team:['<span class="sourdine">'+T('aucun Pokémon')+'</span>'])].join('\n');
   const j=e.jev,c=e.claude;
   $('jev').innerHTML=[row('décisions',kfmt(j.decisions)),row('coût','≈ '+usd(j.cout_usd),'choisi'),row('par décis.',usd(j.cout_usd/Math.max(1,j.decisions))),row('tokens',kfmt(j.tokens)),
     row('latence',j.latence+' ms'),row('blocages',j.blocages+' · '+fr(j.taux_blocage,0)+' %',j.taux_blocage>20?'crit':'')].join('\n');
   $('claude').innerHTML=c?[row('décisions',c.appels+(c.occupe?' …':'')),row('coût',usd(c.cout_usd),'choisi'),row('par décis.',usd(c.cout_usd/Math.max(1,c.appels))),row('tokens',kfmt(c.tokens_entree+c.tokens_sortie)),
-    row('latence',c.ms+' ms'),row('modèle',c.modele+(c.echecs?' · '+c.echecs+' échec(s)':''))].join('\n'):'<span class="sourdine">désactivé</span>';
-  if(e.correctifs){$('s-fix').textContent=e.correctifs.n;$('s-fix-wrap').title=e.correctifs.dernier||''}
+    row('latence',c.ms+' ms'),row('modèle',c.modele+(c.echecs?' · '+c.echecs+T(' échec(s)'):''))].join('\n'):'<span class="sourdine">'+T('désactivé')+'</span>';
+  if(e.correctifs&&e.correctifs.n!==logCount){logCount=e.correctifs.n;$('s-fix').textContent=logCount;if(!PUBLIC)fetch('/changelog').then(r=>r.json()).then(showChangelog).catch(()=>{})}
   $('s-time').textContent=dur(e.joue_s);$('s-maps').textContent=e.cartes;roll($('s-cost'),j.cout_usd+(c?c.cout_usd:0),usd);
   $('claude').classList.toggle('pouls',!!(c&&c.occupe));
-  $('obj-src').textContent=(e.jalon?'jalon « '+e.jalon+' » jugé par Jev · ':'')+'formulé par '+(e.source==='carnet'?'le carnet (gratuit)':e.source);
-  goal(e.objectif,esc(e.objectif)+(e.lecons||[]).map(l=>`\n<span class="s1">leçon : ${esc(l)}</span>`).join('')+(e.zone?`\n<span class="sourdine">zone visée </span><span class="choisi">${esc(e.zone)}</span>`:'')+(e.raison?`\n<span class="sourdine">${esc(e.raison)}</span>`:''));
+  $('obj-src').textContent=(e.jalon?T('jalon « ')+e.jalon+T(' » jugé par Jev · '):'')+T('formulé par ')+(e.source==='carnet'?T('le carnet (gratuit)'):e.source);
+  goal(e.objectif,esc(e.objectif)+(e.lecons||[]).map(l=>`\n<span class="s1">${T('leçon : ')}${esc(l)}</span>`).join('')+(e.zone?`\n<span class="sourdine">${T('zone visée ')}</span><span class="choisi">${esc(e.zone)}</span>`:'')+(e.raison?`\n<span class="sourdine">${esc(e.raison)}</span>`:''));
 }
 // Two transports, one page: the game host serves SSE + /frame on the private network; the public relay speaks WebSocket.
+document.addEventListener('click',ev=>{if(ev.target.closest('#open-log'))$('log').classList.add('ouvert');else if(ev.target.closest('#close-log')||!ev.target.closest('#log'))$('log').classList.remove('ouvert')});
+(async function watchPage(){ const get=async()=>{try{return (await (await fetch(location.pathname,{cache:'no-store'})).text()).length}catch(_){return null}};
+  const mine=await get(); for(;;){ await new Promise(ok=>setTimeout(ok,90000)); const now=await get();
+    if(mine&&now&&now!==mine){ const b=document.createElement('div'); b.id='maj'; b.innerHTML=T('Nouvelle version de la page. ')+'<button type="button" onclick="location.reload()">'+T('recharger')+'</button><button type="button" onclick="this.parentNode.remove()">'+T('plus tard')+'</button>'; document.body.append(b); return } } })();
 const PUBLIC=new URLSearchParams(location.search).has('public')||!/^(localhost|127\.|100\.|192\.168\.|10\.)/.test(location.hostname);
-const online=on=>{$('live').textContent=on?'● EN DIRECT':'○ HORS LIGNE';$('live').style.color=on?'':'var(--crit)'};
+const online=on=>{$('live').textContent=T(on?'● EN DIRECT':'○ HORS LIGNE');$('live').style.color=on?'':'var(--crit)'};
+let logCount=-1;
+const loc=(x,k)=>(LANG==='en'&&x[k+'_en'])||x[k]||'';   // entries carry their English next to the French
+function showChangelog(list){
+  $('s-fix').textContent=logCount=list.length;
+  $('log-body').innerHTML=[...list].reverse().map(x=>`<article><div class="sourdine">${esc(x.date.slice(0,16).replace('T',' '))} · ${esc(T(x.auteur||'réparateur'))}${x.cas?T(' · cas ')+esc(x.cas):''}</div><h3>${esc(loc(x,'titre')||x.cas||'')}</h3><p><span class="sourdine">${T('Ce que le journal montrait — ')}</span>${esc(loc(x,'cause'))}</p><p><span class="sourdine">${T('Ce qui a changé — ')}</span>${esc(loc(x,'resume'))}</p></article>`).join('')||'<p class="sourdine">'+T('Aucun correctif pour l\'instant.')+'</p>';
+}
 function handle(e){
   const J=$('journal');
+  if(e.changelog){showChangelog(e.changelog);return}
+  if(e.rechargement){J.insertAdjacentHTML('afterbegin',`<span class="neuf s1">${new Date((e.t||Date.now()/1000)*1000).toLocaleTimeString(LOC)} ⟳ ${esc(e.rechargement)}</span>\n`);return}
+  if(e.progres){const [i,n]=e.progres, el=document.getElementById('avance'); if(el&&n>1)el.textContent=`${T('   en cours ')}${bar(i/n,14)} ${T('bouton')} ${i}/${n}`;return}
   if('spectateurs' in e){$('s-view-wrap').hidden=false;$('s-view').textContent=e.spectateurs;if(e.source===false)online(false);return}
   if(e.erreur){J.insertAdjacentHTML('afterbegin',`<span class="crit">   ! ${esc(e.erreur)}</span>\n`);
-    if(e.hors_ligne){$('live').textContent='○ JEV INJOIGNABLE';$('live').style.color='var(--crit)'}return}
+    if(e.hors_ligne){$('live').textContent=T('○ JEV INJOIGNABLE');$('live').style.color='var(--crit)'}return}
   if(e.decision){odds(e.decision);return}
   const c=e.coup; state(e);
-  if(!e.hors_ligne){$('live').textContent='● EN DIRECT';$('live').style.color=''}
+  if(!e.hors_ligne){$('live').textContent=T('● EN DIRECT');$('live').style.color=''}
+  if(e.panne_harnais){$('live').textContent=T('◐ HARNAIS AVEUGLE');$('live').style.color='var(--crit)';
+    J.insertAdjacentHTML('afterbegin',`<span class="crit">   ! ${esc(e.panne_harnais)}${T(' : situation non décrite, touches brutes')}</span>\n`)}
   if(c.dialogue) $('dialogue').textContent=c.dialogue.replaceAll(' / ','\n');
   const n=String(e.n).padStart(4), where=`<span class="sourdine">${esc(c.carte)} (${c.position.x},${c.position.y})</span>`;
-  const t=new Date(e.t?e.t*1000:Date.now()).toLocaleTimeString('fr-FR');
+  const t=new Date(e.t?e.t*1000:Date.now()).toLocaleTimeString(LOC);
+  if(c.auto) stale(e.etat.en_combat?'le jeu déroule le texte du combat, Jev n\'a rien à choisir':'le jeu déroule son texte, Jev n\'a rien à choisir');
   if(c.auto){ // one line per page of text, like a transcript of what Jev was shown
     const pages=(c.dialogue||'').split(' / ').filter(Boolean);
     J.insertAdjacentHTML('afterbegin',(pages.length?pages:['…']).reverse().map(p=>`<span class="neuf"><span class="sourdine">${t} ·  A  </span><span class="bon">${esc(p)}</span></span>\n`).join(''));
@@ -154,15 +233,40 @@ function handle(e){
   }
   while(J.childNodes.length>240)J.lastChild.remove();
 }
+// The chat lives in the public relay only, between spectators: nothing typed here ever travels to the game.
+const store={get:k=>{try{return localStorage.getItem(k)}catch(_){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(_){}}};
+(function(){const q=new URLSearchParams(location.search);let seen=false;
+  for(const k of ['admin','relay'])if(q.has(k)){store.set('jev-'+k,q.get(k));q.delete(k);seen=true}
+  if(seen)history.replaceState(null,'',location.pathname+(q.size?'?'+q:''))})();   // a secret does not stay in the address bar
+const ADMIN=store.get('jev-admin'); let chatSocket=null;
+function chatLine(m){const C=$('chat'),low=C.scrollHeight-C.scrollTop-C.clientHeight<40,p=document.createElement('p');
+  p.dataset.id=m.id; if(m.hote)p.className='hote';
+  const t=document.createElement('span');t.className='sourdine';t.textContent=new Date(m.t).toLocaleTimeString(LOC,{hour:'2-digit',minute:'2-digit'})+' ';
+  const b=document.createElement('b');b.textContent=m.pseudo+(m.hote?' ◆':'');
+  p.append(t,b,' '+m.texte);
+  if(ADMIN)for(const [label,verb] of [['✖','supprimer'],['⊘','bannir']]){const x=document.createElement('button');x.type='button';x.textContent=label;x.title=verb;
+    x.onclick=()=>chatSocket&&chatSocket.send(JSON.stringify({admin:ADMIN,[verb]:m.id}));p.append(x)}
+  C.append(p); while(C.childNodes.length>300)C.firstChild.remove(); if(low)C.scrollTop=C.scrollHeight}
+function chatHandle(e){
+  if(e.chat_historique){$('chat').textContent='';e.chat_historique.forEach(chatLine);$('chat').scrollTop=$('chat').scrollHeight;return true}
+  if(e.chat){chatLine(e.chat);return true}
+  if(e.chat_supprime){for(const id of e.chat_supprime)for(const p of $('chat').querySelectorAll('p[data-id="'+id+'"]'))p.remove();return true}
+  if(e.chat_refus){$('chat-note').textContent=T(e.chat_refus);$('chat-note').className='crit';return true}
+  return false}
+function chatOn(ws){chatSocket=ws;$('chat-box').hidden=false;$('chat-name').value=store.get('jev-pseudo')||'';
+  $('chat-form').onsubmit=ev=>{ev.preventDefault();const texte=$('chat-text').value.trim(),pseudo=$('chat-name').value.trim();if(!texte)return;
+    if(!chatSocket||chatSocket.readyState!==1){$('chat-note').textContent=T('Chat déconnecté, nouvel essai en cours…');return}
+    store.set('jev-pseudo',pseudo);$('chat-note').textContent='';$('chat-note').className='sourdine';
+    chatSocket.send(JSON.stringify({chat:texte,pseudo,...(ADMIN?{admin:ADMIN}:{})}));$('chat-text').value=''}}
 if(PUBLIC){
   document.getElementById('goal-form').remove();            // spectators watch; nothing they send reaches the game
   const ctx=$('screen').getContext('2d'); ctx.imageSmoothingEnabled=false; let wait=1000;
   (function connect(){
     const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws'); ws.binaryType='arraybuffer';
-    ws.onopen=()=>{wait=1000;online(true)};
+    ws.onopen=()=>{wait=1000;online(true);chatOn(ws)};
     ws.onclose=()=>{online(false);setTimeout(connect,wait);wait=Math.min(wait*2,30000)};
     ws.onmessage=async m=>{
-      if(typeof m.data==='string'){handle(JSON.parse(m.data));return}
+      if(typeof m.data==='string'){const e=JSON.parse(m.data);if(!chatHandle(e))handle(e);return}
       const bmp=await createImageBitmap(new Blob([m.data],{type:'image/png'})); ctx.imageSmoothingEnabled=false; ctx.drawImage(bmp,0,0,480,432); bmp.close()};
   })();
 } else {
@@ -172,12 +276,16 @@ if(PUBLIC){
       const bmp=await createImageBitmap(await r.blob());ctx.drawImage(bmp,0,0);bmp.close()}
     catch(_){await new Promise(ok=>setTimeout(ok,500))}}
 })();
+if(store.get('jev-relay'))(function chat(wait){const ws=new WebSocket('wss://'+store.get('jev-relay')+'/chat');
+  ws.onopen=()=>{wait=1000;chatOn(ws)};ws.onclose=()=>setTimeout(()=>chat(Math.min(wait*2,30000)),wait);
+  ws.onmessage=m=>{if(typeof m.data==='string')chatHandle(JSON.parse(m.data))}})(1000);
 const es=new EventSource('/events');
 es.onerror=()=>online(false); es.onopen=()=>online(true);
 es.onmessage=m=>handle(JSON.parse(m.data));
 if(!PUBLIC){
 $('goal-form').onsubmit=ev=>{ev.preventDefault();const v=$('goal').value.trim();if(v)fetch('/goal',{method:'POST',body:v});$('goal').value=''};
 $('pause').onclick=()=>fetch('/pause',{method:'POST'});
+$('reload').onclick=()=>fetch('/reload',{method:'POST'});
 let sp=1;$('speed').onclick=()=>{fetch('/speed',{method:'POST'});sp={1:3,3:0,0:1}[sp];$('speed').textContent='vitesse '+(sp?'×'+sp:'max')};
 }
 }

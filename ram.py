@@ -139,10 +139,18 @@ def _battle(read) -> dict:
                        "pv": _u16(read, enemy + 1), "pv_max": _u16(read, enemy + 0x0F),
                        "statut": _status(read(enemy + 4)),
                        "type_ids": [read(enemy + 5), read(enemy + 6)],
+                       "defense": _u16(read, enemy + 0x13), "special": _u16(read, enemy + 0x17),
                        "types": sorted({data.TYPES.get(read(enemy + 5), "?"), data.TYPES.get(read(enemy + 6), "?")})},
+        # Mêmes décalages que la structure adverse (déjà validés pour sa Défense et son Spécial) :
+        # sans l'Attaque et le Spécial du Pokémon actif, rien ne permet de chiffrer un coup.
+        # Vérifié sur le combat d'arène rejoué depuis stuck/0008 : SALAMECHE niv.17 → 25/26/33/27,
+        # et les dégâts calculés avec ces valeurs tombent sur ceux que le jeu retire (2 et 9 PV).
         "actif": {"espece": data.species(read(mine)), "niveau": read(mine + 0x0E),
                   "pv": _u16(read, mine + 1), "pv_max": _u16(read, mine + 0x0F),
                   "statut": _status(read(mine + 4)),
+                  "type_ids": [read(mine + 5), read(mine + 6)],
+                  "attaque": _u16(read, mine + 0x11), "defense": _u16(read, mine + 0x13),
+                  "special": _u16(read, mine + 0x17),
                   "attaques": _moves(read, mine + 8, ADDR["battle_pp"])},
     }
 
@@ -161,12 +169,13 @@ def read_state(read) -> dict:
     return {
         "carte": MAPS.get(map_id, f"carte {map_id}"), "carte_id": map_id,
         "position": {"x": read(ADDR["x"]), "y": read(ADDR["y"])},
+        "orientation": {0x00: "down", 0x04: "up", 0x08: "left", 0x0C: "right"}.get(read(0xC109) & 0x0C),
         "en_combat": in_battle in (1, 2),
         "type_combat": {1: "sauvage", 2: "dresseur"}.get(in_battle),
         "combat": _battle(read) if in_battle in (1, 2) else None,
         "scene_scriptee": bool(read(SCRIPT_CONTROL[0]) & SCRIPT_CONTROL[1]),
         "texte_affiche": ui["dialogue"] is not None, "dialogue": ui["dialogue"],
-        "menu_ouvert": ui["menu"] is not None, "menu": ui["menu"],
+        "menu_ouvert": ui["menu"] is not None, "menu": ui["menu"], "liste_attaques": ui["liste_attaques"],
         "quantite": ui["quantite"],
         "curseur": {"ligne": read(ADDR["cursor_row"]), "x": read(ADDR["cursor_x"]),
                     "y": read(ADDR["cursor_y"]), "defilement": read(ADDR["list_scroll"])},
@@ -179,7 +188,8 @@ def read_state(read) -> dict:
 
 def signature(state: dict) -> tuple:
     """What counts as 'the same situation' for loop detection."""
-    return (state["carte_id"], state["position"]["x"], state["position"]["y"],
+    # facing is part of the situation: turning toward someone changes nothing else, and it is not a wasted move
+    return (state["carte_id"], state["position"]["x"], state["position"]["y"], state.get("orientation"),
             state["en_combat"], state["dialogue"],
             state["menu"]["ligne"] if state["menu"] else None,
             state["quantite"]["nombre"] if state["quantite"] else None,

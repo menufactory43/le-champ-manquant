@@ -7,6 +7,7 @@ from __future__ import annotations
 import json, time, traceback
 from collections import Counter
 from pathlib import Path
+from typing import NamedTuple
 
 from typesafe_sdk import (Choice, TypeSafeAPIConnectionError, TypeSafeAPITimeoutError,
                           TypeSafeClient, TypeSafeInternalServerError, TypeSafeRateLimitError)
@@ -18,13 +19,35 @@ STUCK_LOG = Path(__file__).with_name("stuck.jsonl")
 CASES = Path(__file__).with_name("stuck")        # one folder per reproducible case, for replay.py / repair.py
 ARROWS = {"up": "haut", "down": "bas", "left": "gauche", "right": "droite"}
 JEV_USD_PER_MTOK = 0.041      # derived from the competitor's panel: $8.24 for 201.11M tokens
+LOOP_AFTER, LOOP_CELLS = 30, 3   # free-walking decisions spent on so few cells: a harness hole, frozen for the repairer at once
 CLAUDE_TRIES = 3               # calls per milestone without a new fact; beyond that it is a harness hole
-STALL_AFTER = 14              # Jev decisions without progress before Claude is asked again
+KINDS = {"champion d'arène": " — le champion d'arène : lui parler lance le combat pour le badge",
+         "dresseur": " — un dresseur : lui parler lance un combat", "objet à ramasser": " — un objet à ramasser",
+         "guide de l'arène": " — le guide de l'arène, il donne un conseil"}
+FEED_LESSONS = False          # lessons are logged (journal, carnet) but no longer shown to Jev: two of five were false
+STEP_BY_STEP = True           # Jev decides every single step; the pathfinder only *describes* where each direction leads
+STALL_AFTER = 120 if STEP_BY_STEP else 14   # Jev decisions without progress before Claude is asked (a town is ~40 steps wide)
+FACING = {0x00: "down", 0x04: "up", 0x08: "left", 0x0C: "right"}
 # DNS gone, timeout, 429, 502: the link dropped, Jev did not answer wrongly. Never a harness bug.
 TRANSIENT = (TypeSafeAPIConnectionError, TypeSafeAPITimeoutError,
              TypeSafeRateLimitError, TypeSafeInternalServerError)
 LINK_TRIES = 6                # attempts before the outage is reported upwards
 LINK_WAIT = 2                 # seconds before retrying, doubled each time: 2, 4, 8, 16, 32
+# The pad exists even when the harness fails to describe what is on screen.
+RAW_BUTTONS = {"up": "Appuyer sur HAUT.", "down": "Appuyer sur BAS.", "left": "Appuyer sur GAUCHE.",
+               "right": "Appuyer sur DROITE.", "a": "Appuyer sur A (valider, parler, avancer le texte).",
+               "b": "Appuyer sur B (annuler, revenir en arrière).", "start": "Ouvrir/fermer le menu (START)."}
+BLIND_CASE_AT = 3             # same fault while describing the situation before it is frozen for the repairer
+
+
+class Lead(NamedTuple):
+    """Where one direction leads. Named, not a bare tuple: these four facts are read back in
+    five places, and an anonymous tuple that gains a field crashes every one of them at once —
+    a ValueError inside the *description* of the situation, which is how the game once stopped."""
+    pas: int                  # steps left to that destination once this button is pressed
+    cible: str                # the named destination ("sortie_2", "parler_1", "bord_est"…)
+    texte: str                # how that destination is worded to Jev
+    premier: str              # the button itself, or "face:<direction>" when it only turns the hero
 
 
 def map_name(map_id: int) -> str:
@@ -130,10 +153,18 @@ class Agent:
         self.defeats: dict[int, str | None] = {}   # carte_id -> the Pokémon that laid the team out
         self.blackout: int | None = None       # map we were knocked out on, until the game lands us back
         self.plans: dict[str, list[str]] = {}
+        self.heading: dict[str, int] = {}          # step-by-step: destinations the last step got closer to -> steps left
+        self.leads: dict[str, dict[str, int]] = {}
+        self.aimed: set[str] = set()           # destinations on the known way to the zone aimed at
+        self.intents: dict[str, str | None] = {}   # step-by-step: which named destination a button completes
         self.subgoals: list[dict] = []         # what Claude asked for, newest last
         self.next_area: str | None = None
         self.carnet, self.atlas = route.Carnet(), route.Atlas()
         self.journal = Journal()
+        game.fast_options()                    # measured: about one second saved per battle start
+        self.damage: dict[str, int] = {}       # "foe:move" -> HP it removed last time: a fact Jev can weigh
+        self.pending_hit: tuple | None = None
+        self.on_progress = None                # called (done, total) while a plan plays out — for the live view
         self.seen_items: set[str] = set()
         self.milestone: str | None = None
         self.facts_mark: tuple | None = None
@@ -142,6 +173,8 @@ class Agent:
         self.stuck_events = 0
         self.progress_mark: tuple | None = None
         self.since_progress, self.stall_limit = 0, STALL_AFTER
+        self.faults: Counter = Counter()        # fault fingerprint -> times the description of the situation broke
+        self.blind: str | None = None           # the harness could not describe *this* situation: raw buttons only
         self.jev = {"decisions": 0, "tokens": 0, "cout_usd": 0.0, "ms_total": 0}
         self.played_s = 0.0
         self._link: Link | None = None
@@ -212,11 +245,38 @@ class Agent:
         self.progress_mark = None                          # fresh session: ask Claude where we stand
 
     # ---- action space ---------------------------------------------------
+    def describe(self, state: dict) -> dict[str, str]:
+        """The menu offered to Jev — and what is offered when the harness fails to build it.
+
+        The missing action, until now: *the buttons themselves*. Describing the situation is
+        the harness's own job, so it is the harness that can be wrong (a bad read, a route
+        table that changed shape). Such a failure used to come straight back out of `step`,
+        and the caller replayed the very same frozen situation two seconds later: the same
+        crash for ever, the game never advancing again. A console has seven buttons whatever
+        the harness understands; the fault is named, frozen once for the repairer, said to Jev
+        in the state, and the run keeps going blind rather than not going at all."""
+        try:
+            space = self.action_space(state)
+        except Exception as error:
+            self.plans, self.intents, self.leads = {}, {}, {}
+            self.blind = fault(error)
+            self.faults[self.blind] += 1
+            self.journal.write("pannes", {"panne": self.blind, "carte": state["carte"], "position": state["position"],
+                                          "repetitions": self.faults[self.blind], "trace": traceback.format_exc()[-800:]})
+            if self.faults[self.blind] == BLIND_CASE_AT:      # not a hiccup: a bug in the description
+                self.open_case("exception", state, {"panne": self.blind, "trace": traceback.format_exc()},
+                               fingerprint=self.blind)
+            return dict(RAW_BUTTONS)
+        self.blind = None
+        return space
+
     def action_space(self, state: dict) -> dict[str, str]:
         """Only what makes sense right now. The app owns this table."""
         self.plans = {}
+        if battle.at_move_list(state):
+            return battle.move_options(state, self.damage)
         if battle.at_main_menu(state):
-            return battle.options(state)
+            return battle.options(state, self.damage)
         if battle.at_party_screen(state):
             return battle.party_options(state)
         if state["quantite"]:
@@ -241,7 +301,68 @@ class Agent:
             }
         if state["en_combat"]:
             return {"a": "Continuer le combat.", "b": "Annuler."}
-        return self.destinations(state)
+        return self.step_space(state) if STEP_BY_STEP else self.destinations(state)
+
+    def step_space(self, state: dict) -> dict[str, str]:
+        """One decision per step. The harness knows the routes; it *says* where each direction
+        leads and how far, and Jev presses the button. Nothing walks on its own."""
+        named = self.destinations(state)                       # fills self.plans with a full route per destination
+        routes, self.plans, self.intents, self.leads = self.plans, {}, {}, {}
+        facing = state.get("orientation")
+        toward: dict[str, list] = {b: [] for b in world.STEPS}
+        in_front = None
+        for key, text in named.items():
+            route = routes.get(key)
+            if not route:
+                continue
+            first = route[0]
+            if first.startswith("face:") and first.removeprefix("face:") == facing:
+                first = route[1]                                # already facing it: what remains is the A press
+            if first == "a":
+                in_front = (key, text)
+            else:
+                toward[first.removeprefix("face:")].append(Lead(len(route), key, text, first))
+
+        here = (state["position"]["x"], state["position"]["y"])
+        trail = [(h["position"]["x"], h["position"]["y"]) for h in self.history[-6:] if h["carte"] == state["carte"]]
+        space: dict[str, str] = {}
+        for button, leads in toward.items():
+            free = named.pop(button, None)                     # destinations() offers bare steps when nothing is reachable
+            if not leads and not free:
+                continue
+            leads.sort()
+            label = f"Un pas vers {ARROWS[button]}"
+            if leads and leads[0].premier.startswith("face:"):
+                label = f"Se tourner vers {ARROWS[button]}"
+            self.leads[button] = {lead.cible: lead.pas for lead in leads}
+            going = [lead.texte.split(", à ")[0] for lead in leads
+                     if lead.cible in self.heading and lead.pas < self.heading[lead.cible]]
+            if leads:
+                # Trois destinations tiennent dans une option : les plus proches d'abord, mais jamais
+                # au prix de celle qui mène à la zone visée. À Argenta, « bord est vers Route 3 » était
+                # dixième sur douze et disparaissait dans « (et 9 autres) » : la seule direction qui y
+                # menait se décrivait par un musée et une boutique.
+                first = sorted(leads, key=lambda lead: (lead.cible not in self.aimed, lead.pas))
+                shown = " ; ".join(lead.texte.rstrip(".") for lead in first[:3])
+                label += f" — rapproche de : {shown}" + (f" (et {len(leads) - 3} autres)" if len(leads) > 3 else "")
+                self.intents[button] = leads[0].cible if leads[0].pas <= 3 else None  # about to arrive: this step *is* that action
+                self.plans[button] = [leads[0].premier]
+            else:
+                label += " — aucune destination connue par là"
+                self.plans[button] = [button]
+            target = (here[0] + world.STEPS[button][0], here[1] + world.STEPS[button][1])
+            if going:                                          # a fact about his own last move, not an order
+                label += f" ↳ poursuit ton mouvement précédent vers : {' ; '.join(going[:2])}"
+            if target in trail:
+                label += " (case quittée il y a peu : demi-tour)"
+            space[button] = label + "."
+        if in_front:
+            space["a"] = f"Appuyer sur A, c'est juste devant : {in_front[1]}"
+            self.intents["a"] = in_front[0]
+        else:
+            space["a"] = named.get("a", "Interagir avec ce qui est juste devant (panneau, objet, meuble).")
+        self.plans["a"] = ["a"]
+        return space
 
     def destinations(self, state: dict) -> dict[str, str]:
         read, here = self.game.shifted(), (state["position"]["x"], state["position"]["y"])
@@ -253,8 +374,17 @@ class Agent:
         for name in [map_name(w["vers"]) for w in exits] + [map_name(m) for m in borders.values()]:
             self.atlas.see(state["carte"], name)       # a destination read on the map is a fact, door taken or not
         hop, aim = self.atlas.heading(state["carte"], self.next_area, set(self.visited))
-        tag = lambda name: ((" (déjà visitée)" if name in self.visited else " (jamais visitée)")
-                            + (f" ← sur le chemin connu vers « {aim} »" if name == hop and aim != name else ""))
+        self.aimed = set()          # the destinations that are the known way to the zone aimed at
+
+        def tag(name: str, key: str = "") -> str:
+            """Un pas vers la zone visée reste un pas vers la zone visée quand elle est *voisine* :
+            la marque sautait justement dans ce cas (`aim != name`), et la sortie vers la zone
+            du jalon se retrouvait décrite comme n'importe quelle porte du décor."""
+            if name == hop and key:
+                self.aimed.add(key)
+            return ((" (déjà visitée)" if name in self.visited else " (jamais visitée)")
+                    + (f" ← sur le chemin connu vers « {aim} »" if name == hop and aim != name
+                       else " ← c'est la zone visée" if name == hop else ""))
 
         def known(action: str, dest: int) -> str:
             """What the harness has already lived through on this way: a route tried and never
@@ -271,13 +401,15 @@ class Agent:
         for i, warp in enumerate(exits):
             cell, name = (warp["x"], warp["y"]), map_name(warp["vers"])
             steps = world.path(grid, here, [cell], occupied)
-            if steps is None or cell == here:
+            if steps is None:
                 continue
+            if cell == here and not world.off_map_direction(grid, *cell):
+                continue                                   # a staircase we are standing on: step off and back, nothing to offer
             leave = world.off_map_direction(grid, *cell)
             self.plans[f"sortie_{i}"] = steps + ([leave] * 2 if leave else [])
             heal = (" On y soigne l'équipe." if warp["vers"] in ram.POKEMON_CENTERS else
                     " On y achète des objets (Poké Ball, Potion…)." if warp["vers"] in ram.MARTS else "")
-            space[f"sortie_{i}"] = (f"Entrer dans « {name} »{tag(name)}, à {len(steps)} pas.{heal}"
+            space[f"sortie_{i}"] = (f"Entrer dans « {name} »{tag(name, f'sortie_{i}')}, à {len(steps)} pas.{heal}"
                                     + known(f"sortie_{i}", warp["vers"]))
 
         for p in people:
@@ -293,7 +425,7 @@ class Agent:
             counter = p["n"] == 1 and state["carte_id"]
             who = ("à l'infirmière (soigne toute l'équipe)" if counter in ram.POKEMON_CENTERS else
                    "au vendeur derrière le comptoir (ouvre ACHETER / VENDRE)" if counter in ram.MARTS else
-                   f"au personnage n°{p['n']}")
+                   f"au personnage n°{p['n']}{KINDS.get(p.get('role'), '')}")
             space[f"parler_{p['n']}"] = (f"Aller parler {who}, à {len(steps)} pas."
                                          + (f" Déjà fait, réponse : « {said} »" if said else " Jamais fait."))
 
@@ -302,8 +434,9 @@ class Agent:
             if steps is not None:
                 name = map_name(target)
                 self.plans[f"bord_{side}"] = steps + [world.EDGES[side][1]] * 2
-                space[f"bord_{side}"] = (f"Quitter cette carte par le bord {side} vers « {name} »{tag(name)}, "
-                                         f"à {len(steps)} pas." + known(f"bord_{side}", target))
+                space[f"bord_{side}"] = (f"Quitter cette carte par le bord {side} vers « {name} »"
+                                         f"{tag(name, f'bord_{side}')}, à {len(steps)} pas."
+                                         + known(f"bord_{side}", target))
 
         grass = set(world.grass_cells(read, self.game.rom))
         if grass and state["equipe"] and not weak(state):
@@ -351,6 +484,8 @@ class Agent:
                 self.game.press(button)                # the first press only turned the player
                 state = self.game.state()
             done += 1
+            if self.on_progress:
+                self.on_progress(done, len(plan))
             if state["carte_id"] != start_map or state["texte_affiche"] or state["en_combat"]:
                 break
             if button in world.STEPS and not turn:
@@ -532,11 +667,19 @@ class Agent:
             self.history.append(record)
             return record
 
+        if self.pending_hit and (state["menu_ouvert"] or not state["en_combat"]):
+            species, move, hp_before = self.pending_hit
+            foe = state["combat"]["adversaire"] if state["combat"] else None
+            if foe and foe["espece"] == species:
+                self.damage[f"{species}:{move}"] = max(0, hp_before - foe["pv"])
+            elif any(m["pv"] > 0 for m in state["equipe"]):
+                self.damage[f"{species}:{move}"] = hp_before            # it is gone and we are standing: that hit finished it
+            self.pending_hit = None
         sig = ram.signature(state)
         jev = self.link(client)
         if not state["en_combat"] and not state["menu_ouvert"]:
             self.orient(jev, state)
-        space = self.action_space(state)
+        space = self.describe(state)
         self.supervise(state, space)
         offered = dict(space)
         kept = {k: v for k, v in space.items() if (sig, k) not in self.noops}
@@ -554,13 +697,17 @@ class Agent:
 
         started = time.perf_counter()
         lessons = self.carnet.lessons(self.milestone)
-        context = {"objectif": self.goal, **({"lecons": lessons} if lessons else {}), "objectif_final": self.final_goal, "jeu": "Pokémon Bleu",
+        context = {"objectif": self.goal, **({"lecons": lessons} if lessons and FEED_LESSONS else {}), "objectif_final": self.final_goal, "jeu": "Pokémon Bleu",
                    "etat": brief(state),
                    "derniers_textes": self.dialogues[-3:] if state["en_combat"] else self.dialogues[-1:],
                    "derniers_coups": [b for _, b in self.recent[-6:]]}
-        alert = weak(state)
+        alert = None if state["en_combat"] else weak(state)
         if alert:
             context["alerte"] = alert
+        if self.blind:                       # a fact about the harness, not about the game
+            context["harnais"] = (f"Panne du harnais ({self.blind}) : il n'a pas pu décrire la situation. "
+                                  "Aucune destination n'est calculée, seules les touches brutes sont proposées ; "
+                                  "fie-toi à l'écran et au texte.")
         response = jev.system_one(state=context, questions={"action": Choice(
             instructions="Quelle action effectuer maintenant pour avancer vers l'objectif ?", criteria=space)})
         answer = response.choices["action"]
@@ -568,7 +715,8 @@ class Agent:
         tokens = getattr(getattr(response, "usage", None), "input_tokens", 0) or 0
         self._count(tokens)
         self.jev["ms_total"] += round(decision_ms)
-        self.since_progress += 1
+        if not state["en_combat"]:                       # a long fight is not a stall, and Claude cannot act in one
+            self.since_progress += 1
 
         action = answer.choice
         record = {"carte": state["carte"], "position": state["position"],
@@ -580,24 +728,32 @@ class Agent:
             on_decision(record)                        # show the choice before it plays out
 
         if action.split("_")[0] in ("attaque", "changer", "capturer", "potion", "fuite", "choisir"):
-            if not self.driver.run(action, state):
+            ran = self.driver.run(action, state)
+            if ran and state["combat"] and action.startswith("attaque_"):
+                move = next((m["nom"] for m in state["combat"]["actif"]["attaques"] if f"attaque_{m['case']}" == action), None)
+                foe = state["combat"]["adversaire"]
+                self.pending_hit = (foe["espece"], move, foe["pv"])    # measured at the next decision, once the turn has played out
+            if not ran:
                 record["echec"] = f"Impossible d'exécuter {action} ; nouvelle question à Jev."
                 self.noops.add((sig, action))
         else:
-            self.talking_to = f"{state['carte_id']}:{action.split('_')[1]}" if action.startswith("parler_") else None
+            meant = (self.intents.get(action) or action) if STEP_BY_STEP else action   # the named action this button completes
+            if STEP_BY_STEP and action in world.STEPS:
+                self.heading = self.leads.get(action, {})
+            self.talking_to = f"{state['carte_id']}:{meant.split('_')[1]}" if meant.startswith("parler_") else None
             record["pas"] = self.walk(self.plans.get(action, [action]))
             after = self.game.state()
-            self.atlas.record(state["carte"], action, after["carte"])
+            self.atlas.record(state["carte"], meant, after["carte"])
             self.barring = None
-            if action.split("_")[0] in ("sortie", "bord") and not after["en_combat"] \
+            if meant.split("_")[0] in ("sortie", "bord") and not after["en_combat"] \
                     and after["carte_id"] == state["carte_id"]:
                 # The announced destination was not reached: something bars this way. Saying
                 # which way never arrives is a fact; leaving it described as "à 38 pas" is a lie.
-                seen = self.barred.setdefault((state["carte_id"], action), {"essais": 0, "texte": None})
+                seen = self.barred.setdefault((state["carte_id"], meant), {"essais": 0, "texte": None})
                 seen["essais"] += 1
                 record["barre"] = seen["essais"]
                 if after["texte_affiche"]:
-                    self.barring = (state["carte_id"], action)   # the reason is still being printed
+                    self.barring = (state["carte_id"], meant)   # the reason is still being printed
         landed = self.game.state()
         withheld = {k: ("sans effet ici" if (sig, k) in self.noops else "boucle") for k in offered if k not in space}
         self.journal.write("decisions", {
@@ -611,7 +767,22 @@ class Agent:
         if ram.signature(self.game.state()) == sig:
             self.noops.add((sig, action))              # nothing happened: don't offer it here again
         self.history = (self.history + [record])[-400:]
+        self.pacing(state, offered)
         return record
+
+    def pacing(self, state: dict, offered: dict[str, str]) -> None:
+        """Treading the same few cells is already a hole in the state or in the menu: freeze it now, instead of
+        after three Claude calls (hundreds of decisions). Fights, texts and menus legitimately stay in place."""
+        trail = self.__dict__.setdefault("trail", [])
+        if state["en_combat"] or state["menu_ouvert"] or state["texte_affiche"]:
+            return
+        trail.append((state["carte"], state["position"]["x"], state["position"]["y"]))
+        del trail[:-LOOP_AFTER]
+        cells = sorted(set(trail))
+        if len(trail) == LOOP_AFTER and len(cells) <= LOOP_CELLS and self.since_progress >= LOOP_AFTER:
+            self.open_case("boucle", state, {"cases_pietinees": cells, "decisions_sur_place": LOOP_AFTER, "options_proposees": offered},
+                           fingerprint=f"boucle:{self.milestone}:{cells[0]}")
+            trail.clear()
 
     def run(self, steps: int):
         with TypeSafeClient() as client:

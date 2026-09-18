@@ -30,7 +30,7 @@ def main() -> int:
     with Game(args.rom, window=False, speed=0, save_state=str(folder / "case.state")) as game, TypeSafeClient() as client:
         agent = Agent(game, case["memoire"].get("final_goal", case["objectif"]))
         agent.restore(case["memoire"])
-        known, before = set(agent.visited), None
+        known, before, cells = set(agent.visited), None, set()
         try:
             while agent.jev["decisions"] - case["memoire"]["jev"]["decisions"] < args.decisions:
                 agent.step(client)
@@ -39,7 +39,10 @@ def main() -> int:
                          tuple(sorted(i["nom"] for i in state["sac"])))
                 before = before or (case["jalon"], *facts[1:])
                 new_maps = [m for m in agent.visited if m not in known]
-                if case["genre"] == "trou" and (facts != before or new_maps):
+                cells.add((state["carte"], state["position"]["x"], state["position"]["y"]))
+                if case["genre"] == "boucle" and len(cells) >= 4 * len(case.get("cases_pietinees", [1, 2])):
+                    return report(True, agent, f"sorti : {len(cells)} cases parcourues au lieu de piétiner {case.get('cases_pietinees')}")
+                if case["genre"] in ("trou", "boucle") and (facts != before or new_maps):
                     return report(True, agent, f"sorti : jalon {before[0]} → {facts[0]}, nouvelles cartes {new_maps}, faits {facts[1:]}")
         except Exception:
             return report(False, agent, "exception : " + traceback.format_exc()[-600:])

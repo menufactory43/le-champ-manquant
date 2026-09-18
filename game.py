@@ -41,6 +41,13 @@ class Game:
             if i % 2 == 0:
                 self.on_frame(self.pyboy.screen.image)
 
+    def fast_options(self) -> None:
+        """What a player in a hurry sets in the OPTIONS menu: fastest text, battle animations off."""
+        if self.shift is None:
+            self.shift = ram.detect_shift(self.read)
+        address = 0xD355 + self.shift
+        self.pyboy.memory[address] = (self.pyboy.memory[address] & 0x70) | 0x80 | 0x01
+
     def state(self) -> dict:
         if self.shift is None:
             self.shift = ram.detect_shift(self.read)

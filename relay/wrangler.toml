@@ -16,6 +16,7 @@ workers_dev = true
 [assets]
 directory = "public"
 binding = "ASSETS"
+run_worker_first = ["/", "/index.html", "/en", "/en/"]   # la page passe par le Worker (adresses absolues des aperçus de lien)
 
 [[durable_objects.bindings]]
 name = "STREAM"

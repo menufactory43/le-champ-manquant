@@ -53,6 +53,7 @@ async def _session(hub, ws) -> None:
                 if note.get("nouveau") or (was == 0 and state["viewers"] > 0):
                     for line in hub.backlog[-60:]:        # a newcomer gets the recent story at once
                         await ws.send(line)
+                    await ws.send(json.dumps({"changelog": hub.changelog()}, ensure_ascii=False))
 
     async def events():
         hub.clients.append(mine)
@@ -76,4 +77,13 @@ async def _session(hub, ws) -> None:
                 last = image
                 await ws.send(png(image))
 
-    await asyncio.gather(listen(), events(), frames())
+    async def changelog():
+        sent = None                                       # pushed at connection and whenever the harness changes, watched or not:
+        while True:                                       # the relay keeps it for whoever comes next
+            entries = hub.changelog()
+            if len(entries) != sent:
+                sent = len(entries)
+                await ws.send(json.dumps({"changelog": entries}, ensure_ascii=False))
+            await asyncio.sleep(20)
+
+    await asyncio.gather(listen(), events(), frames(), changelog())

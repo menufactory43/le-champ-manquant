@@ -102,13 +102,28 @@ def hidden_sprites(read) -> set[int]:
     return hidden
 
 
+SPRITE_EXTRA = 0xD504          # 2 bytes per character: (trainer class + 200 | item id, trainer set)
+LEADERS = {29, 34, 35, 36, 37, 38, 39, 40}   # Giovanni, Brock, Misty, Lt. Surge, Erika, Koga, Blaine, Sabrina
+GYM_GUIDE_SPRITE = 0x24
+
+
+def role(read, index: int) -> str | None:
+    """What the game itself knows about a character: a trainer, a gym leader, an item lying there."""
+    extra = read(SPRITE_EXTRA + 2 * (index - 1))
+    if extra >= 200:
+        return "champion d'arène" if extra - 200 in LEADERS else "dresseur"
+    if extra:
+        return "objet à ramasser"
+    return "guide de l'arène" if read(SPRITES_1 + 16 * index) == GYM_GUIDE_SPRITE else None
+
+
 def npcs(read) -> list[dict]:
     """Every character on the map, on screen or not. (Image index 0xFF only means off screen.)"""
     gone, out = hidden_sprites(read), []
     for i in range(1, 16):
         if read(SPRITES_1 + 16 * i) == 0 or i in gone:
             continue
-        out.append({"n": i, "x": read(SPRITES_2 + 16 * i + 5) - 4,
+        out.append({"n": i, "role": role(read, i), "x": read(SPRITES_2 + 16 * i + 5) - 4,
                     "y": read(SPRITES_2 + 16 * i + 4) - 4})
     return out
 

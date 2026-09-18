@@ -16,3 +16,9 @@ stuck/*/repair.json
 repair.log
 .env
 journal/
+
+stuck/*/essai-*
+stuck/*/decisions.jsonl
+relay/.dev.vars
+relay/.wrangler/
+!relay/public/og.png

@@ -3,7 +3,7 @@
     uv run python serve.py "Devenir Maître Pokémon" --rom pokemon_blue_fr.gb --load start.state
 """
 from __future__ import annotations
-import argparse, io, json, queue, threading, time, traceback
+import argparse, importlib, io, json, py_compile, queue, sys, threading, time, traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -24,10 +24,12 @@ class Hub:
     def __init__(self):
         self.frame, self.frame_ready = b"", threading.Condition()
         self.raw_frame = None                       # last PIL image, for the public relay
+        self.changelog = lambda: changelog_entries()
         self.clients: list[queue.Queue] = []
         self.backlog: list[str] = []
         self.paused = False
         self.new_goal: str | None = None
+        self.reload_asked = False
         self.speed = 1                              # 1 real time, 3 fast, 0 unlimited
 
     def push_frame(self, image) -> None:
@@ -38,18 +40,26 @@ class Hub:
             self.frame = buffer.getvalue()
             self.frame_ready.notify_all()
 
-    def publish(self, event: dict) -> None:
+    def publish(self, event: dict, keep: bool = True) -> None:
         event.setdefault("t", round(time.time()))            # the journal shows when it happened, not when it was read
         line = json.dumps(event, ensure_ascii=False)
-        self.backlog = (self.backlog + [line])[-150:]
+        if keep:                                              # progress ticks are live-only: no use to a latecomer
+            self.backlog = (self.backlog + [line])[-150:]
         for client in list(self.clients):
             client.put(line)
 
 
+CHANGELOG = Path(__file__).with_name("changelog.jsonl")
+
+
+def changelog_entries() -> list[dict]:
+    lines = CHANGELOG.read_text(encoding="utf-8").splitlines() if CHANGELOG.exists() else []
+    return [json.loads(line) for line in lines if line.strip()]
+
+
 def changelog() -> dict:
-    path = Path(__file__).with_name("changelog.jsonl")
-    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
-    return {"n": len(lines), "dernier": json.loads(lines[-1])["resume"] if lines else None}
+    entries = changelog_entries()
+    return {"n": len(entries), "dernier": entries[-1]["resume"] if entries else None}
 
 
 def snapshot(agent: Agent, game: Game, record: dict, step: int) -> dict:
@@ -66,6 +76,7 @@ def snapshot(agent: Agent, game: Game, record: dict, step: int) -> dict:
                     "sous_objectifs": len(agent.subgoals)} if agent.supervisor else None),
         "joue_s": round(agent.played_s), "cartes": len(agent.visited), "correctifs": changelog(),
         "hors_ligne": agent.offline,
+        "panne_harnais": agent.blind,        # the description of the situation broke: Jev is on the bare pad
     }
 
 
@@ -79,6 +90,36 @@ def checkpoint(game: Game, agent: Agent, state: dict, folder: Path, keep: int = 
         old.unlink(); old.with_suffix(".json").unlink(missing_ok=True)
 
 
+HOT = ["screen", "data", "ram", "world", "battle", "route", "journal", "supervisor", "game", "agent"]   # dependency order
+HERE = Path(__file__).parent
+
+
+def code_stamp() -> float:
+    return max((HERE / f"{name}.py").stat().st_mtime for name in HOT)
+
+
+def hot_reload(agent, game, rom: str):
+    """Swap the harness code under a running game: same emulator, same memory, no rollback.
+    Anything wrong with the new code and the old agent keeps playing."""
+    for name in HOT:
+        py_compile.compile(str(HERE / f"{name}.py"), doraise=True)
+    modules = {name: importlib.reload(sys.modules[name]) for name in HOT if name in sys.modules}
+    modules["data"].load(rom)                                  # the reload emptied its ROM tables
+    game.__class__ = modules["game"].Game
+    supervisor = agent.supervisor
+    if supervisor and not supervisor.busy:                     # a call in flight still belongs to the old object
+        fresh = modules["supervisor"].Supervisor(supervisor.model)
+        fresh.stats = supervisor.stats
+        supervisor = fresh
+    new = modules["agent"].Agent(game, agent.final_goal, supervisor=supervisor, final_goal=agent.final_goal)
+    for key, value in agent.__dict__.items():                  # carry the memory over, not the old classes
+        if type(value).__module__ not in HOT and key not in ("game", "supervisor"):
+            setattr(new, key, value)
+    new.atlas.__dict__.update(agent.atlas.__dict__)
+    new.journal.pending_claude = agent.journal.pending_claude
+    return new
+
+
 def play(hub: Hub, args) -> None:
     memory = Path(args.autosave).with_suffix(".json")
     resume = Path(args.autosave).exists() and not args.fresh
@@ -86,13 +127,22 @@ def play(hub: Hub, args) -> None:
         game.on_frame = hub.push_frame
         supervisor = None if args.superviseur == "aucun" else Supervisor(args.superviseur)
         agent = Agent(game, args.goal, supervisor=supervisor, final_goal=args.goal)
+        agent.on_progress = lambda done, total: hub.publish({"progres": [done, total]}, keep=False)
         if resume and memory.exists():
             agent.restore(json.loads(memory.read_text()))
         speed, saved_at, milestone = hub.speed, time.time(), None
         events = Path(args.autosave).with_name("events.jsonl").open("a", encoding="utf-8")
         with TypeSafeClient() as client:
             step, failures, last_fault, offline = 0, 0, None, 0
+            loaded = code_stamp()
             while True:
+                if hub.reload_asked or code_stamp() != loaded:
+                    hub.reload_asked, loaded = False, code_stamp()
+                    try:
+                        agent = hot_reload(agent, game, args.rom)
+                        hub.publish({"rechargement": "harnais rechargé à chaud, partie intacte"})
+                    except Exception as error:
+                        hub.publish({"rechargement": f"rechargement refusé, l'ancien code continue : {error!r}"[:300]})
                 if hub.speed != speed:
                     speed = hub.speed; game.pyboy.set_emulation_speed(speed)
                 if hub.new_goal:
@@ -143,6 +193,11 @@ def handler(hub: Hub):
             if self.path == "/":
                 body = PAGE.read_bytes()
                 self.send_response(200); self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body))); self.end_headers()
+                self.wfile.write(body)
+            elif self.path == "/changelog":
+                body = json.dumps(changelog_entries(), ensure_ascii=False).encode()
+                self.send_response(200); self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Content-Length", str(len(body))); self.end_headers()
                 self.wfile.write(body)
             elif self.path.startswith("/frame"):
@@ -197,6 +252,8 @@ def handler(hub: Hub):
                 hub.new_goal = body.strip()[:300]
             elif self.path == "/pause":
                 hub.paused = not hub.paused
+            elif self.path == "/reload":
+                hub.reload_asked = True
             elif self.path == "/speed":
                 hub.speed = {1: 3, 3: 0, 0: 1}[hub.speed]
             self.send_response(204); self.send_header("Content-Length", "0"); self.end_headers()
