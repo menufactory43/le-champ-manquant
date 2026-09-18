@@ -1,0 +1,29 @@
+# Relais public « Jev joue à Pokémon » — un seul Durable Object SQLite (Stream).
+#
+# La machine de jeu ouvre UN WebSocket sortant (/push, Bearer PUSH_SECRET) : il n'est jamais
+# exposé à Internet. Le DO rediffuse aux spectateurs (/ws) via la WebSocket
+# Hibernation API. La machine de jeu ne pousse images et événements que s'il y a au moins un
+# spectateur : à vide, le DO hiberne (coût ~0), ce qui protège le quota gratuit
+# partagé avec les autres relais du compte.
+#
+# IMPORTANT : `new_sqlite_classes` (JAMAIS `new_classes`) sur le free tier.
+
+name = "jev-pokemon"
+main = "src/worker.js"
+compatibility_date = "2025-04-01"
+workers_dev = true
+
+[assets]
+directory = "public"
+binding = "ASSETS"
+
+[[durable_objects.bindings]]
+name = "STREAM"
+class_name = "Stream"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Stream"]
+
+# Le secret du pousseur n'est PAS ici. Pose-le avec :  wrangler secret put PUSH_SECRET
+# (même valeur que RELAY_SECRET dans ~/jev-pokemon/.env sur la machine de jeu).

@@ -1,0 +1,90 @@
+{
+  "_": "Carnet de route : une orientation en texte, écrite une fois par Claude. Aucun test codé ici — c'est Jev qui juge quel jalon est en cours, et Claude qui y ajoute des leçons quand l'agent cale.",
+  "jalons": [
+    {
+      "id": "starter",
+      "zone": "Labo du Prof. Chen",
+      "texte": "Obtenir un premier Pokémon : à Bourg Palette, tenter de quitter la ville par le bord nord ; le Prof. Chen arrive et emmène le joueur au labo. Là, parler à une POKé BALL posée sur la table et répondre OUI. Battre le rival."
+    },
+    {
+      "id": "colis",
+      "zone": "Boutique de Jadielle",
+      "texte": "Récupérer le COLIS DE CHEN : Route 1 vers le nord, Jadielle, entrer dans la Boutique."
+    },
+    {
+      "id": "pokedex",
+      "zone": "Labo du Prof. Chen",
+      "texte": "Livrer le COLIS DE CHEN : retourner à Bourg Palette par la Route 1 (sud), entrer au labo, parler au Prof. Chen. Il donne le Pokédex."
+    },
+    {
+      "id": "badge_roche",
+      "zone": "Arène d'Argenta",
+      "texte": "Badge Roche : Jadielle, Route 2 au nord, Forêt de Jade (postes sud puis nord), Argenta. Champion Pierre (Roche) : niveau 13 environ conseillé avec Salamèche, sinon un Pokémon Plante, Eau ou Combat."
+    },
+    {
+      "id": "badge_cascade",
+      "zone": "Arène d'Azuria",
+      "texte": "Badge Cascade : Argenta, Route 3 à l'est, Mont Sélénite, Route 4, Azuria. Championne Ondine (Eau) : niveau 21 environ, éviter Feu et Roche."
+    },
+    {
+      "id": "passe_bateau",
+      "zone": "Maison de Léo",
+      "texte": "PASSE BATEAU : au nord d'Azuria, Route 24 (pont), Route 25, Maison de Léo ; l'aider avec son PC."
+    },
+    {
+      "id": "cs_coupe",
+      "zone": "Océane cabine du capitaine",
+      "texte": "CS01 COUPE : Azuria, maison cambriolée, Route 5, Souterrain, Route 6, Carmin-sur-Mer, quai, monter sur l'Océane jusqu'au capitaine."
+    },
+    {
+      "id": "badge_foudre",
+      "zone": "Arène de Carmin",
+      "texte": "Badge Foudre : apprendre COUPE, couper l'arbuste devant l'Arène de Carmin, battre le Major Bob (Électrik ; un type Sol est idéal, niveau 26 environ)."
+    },
+    {
+      "id": "badge_prisme",
+      "zone": "Arène de Céladopole",
+      "texte": "Badge Prisme : Azuria, Route 9, Route 10, la Grotte, Lavanville, Route 8, Souterrain, Céladopole. Championne Erika (Plante), niveau 32 environ."
+    },
+    {
+      "id": "scope_sylphe",
+      "zone": "Repaire Rocket B4F",
+      "texte": "SCOPE SYLPHE : Casino de Céladopole, affiche du fond, Repaire Rocket, battre Giovanni."
+    },
+    {
+      "id": "pokeflute",
+      "zone": "Maison de M. Fuji",
+      "texte": "POKéFLUTE : Tour Pokémon de Lavanville jusqu'au 7e étage, sauver M. Fuji, lui parler chez lui."
+    },
+    {
+      "id": "badge_ame",
+      "zone": "Arène de Parmanie",
+      "texte": "Badge Âme : réveiller Ronflex (Route 12) avec la POKéFLUTE, Routes 12 à 15, Parmanie. Champion Koga (Poison), niveau 40 environ."
+    },
+    {
+      "id": "cs_surf_force",
+      "zone": "Maison du Gardien",
+      "texte": "CS03 SURF et CS04 FORCE : Parc Safari de Parmanie (maison secrète, DENT D'OR), puis le Gardien."
+    },
+    {
+      "id": "badge_marais",
+      "zone": "Arène de Safrania",
+      "texte": "Badge Marais : donner une boisson au garde, Safrania, libérer la Sylphe SARL, battre Morgane (Psy), niveau 44 environ."
+    },
+    {
+      "id": "badge_volcan",
+      "zone": "Arène de Cramois'Île",
+      "texte": "Badge Volcan : SURF au sud de Bourg Palette, Cramois'Île, CLÉ SECRÈTE au Manoir Pokémon, battre Auguste (Feu)."
+    },
+    {
+      "id": "badge_terre",
+      "zone": "Arène de Jadielle",
+      "texte": "Badge Terre : Arène de Jadielle, Giovanni (Sol), niveau 50 environ."
+    },
+    {
+      "id": "ligue",
+      "zone": "Salle du Maître",
+      "texte": "Ligue : Route 22, Route 23, Route Victoire (FORCE), Plateau Indigo ; acheter des soins ; battre Olga, Aldo, Agatha, Peter, puis le rival. Niveau 55 environ."
+    }
+  ]
+}

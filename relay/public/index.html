@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Jev joue à Pokémon</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{color-scheme:light;--page:#f4f2ed;--panneau:#fcfbf8;--encre:#1b1b18;--encre-2:#52514e;--sourdine:#87857c;
+  --filet:#e4e2d9;--cadre:rgba(27,27,24,.32);--s1:#2a78d6;--s4:#b97e00;--bon:#106e10;--crit:#b32d2d}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--page:#121210;--panneau:#1c1c1a;--encre:#f0efe8;--encre-2:#c3c2b7;
+  --sourdine:#8b897f;--filet:#2d2d2a;--cadre:rgba(240,239,232,.32);--s1:#4f93ec;--s4:#eda100;--bon:#3fbf3f;--crit:#e66767}}
+*{box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{margin:0;background:var(--page);color:var(--encre);font:12.5px/1.55 "SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;-webkit-font-smoothing:antialiased}
+.page{max-width:1720px;height:100vh;margin:0 auto;padding:18px 28px 22px;display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 22px;margin-bottom:18px}
+h1{font-size:15px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;margin:0}
+header .k{font-size:11.5px;color:var(--sourdine)} header .k b{color:var(--encre);font-weight:700;font-variant-numeric:tabular-nums}
+.badge{margin-left:auto;border:1px solid var(--cadre);border-radius:3px;padding:1px 7px;font-size:10px;letter-spacing:.12em;color:var(--bon)}
+.grille{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1.1fr) minmax(0,1fr);gap:18px;flex:1;min-height:0}
+.col{display:flex;flex-direction:column;gap:18px;min-width:0;min-height:0}
+.cadre{flex:none}.cadre>pre{overflow:hidden}.cadre.plein{flex:1;min-height:0;display:flex;flex-direction:column;overflow:visible}
+.cadre.plein>pre{flex:1;min-height:0;overflow:hidden}
+.cadre{position:relative;margin:0;padding:16px 16px 12px;min-width:0;background:
+  repeating-linear-gradient(to right,var(--cadre) 0 2px,transparent 2px 7px) top left/100% 1px no-repeat,
+  repeating-linear-gradient(to right,var(--cadre) 0 2px,transparent 2px 7px) bottom left/100% 1px no-repeat,
+  repeating-linear-gradient(to bottom,var(--cadre) 0 2px,transparent 2px 7px) top left/1px 100% no-repeat,
+  repeating-linear-gradient(to bottom,var(--cadre) 0 2px,transparent 2px 7px) top right/1px 100% no-repeat}
+.cadre>i{position:absolute;font-style:normal;line-height:1;color:var(--encre-2);background:var(--page);font-size:12px}
+.cadre>i:nth-of-type(1){top:-6px;left:-4px}.cadre>i:nth-of-type(2){top:-6px;right:-4px}
+.cadre>i:nth-of-type(3){bottom:-6px;left:-4px}.cadre>i:nth-of-type(4){bottom:-6px;right:-4px}
+.titre{position:absolute;top:-9px;left:14px;background:var(--page);padding:0 6px;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+.titre small{font:inherit;font-weight:400;color:var(--sourdine);letter-spacing:.04em;text-transform:none}
+pre{margin:0;font:inherit;white-space:pre-wrap;word-break:break-word}
+#screen{display:block;flex:1;min-height:0;width:100%;object-fit:contain;image-rendering:pixelated;background:#000}
+.sourdine{color:var(--sourdine)}.choisi{color:var(--s4);font-weight:700}.bon{color:var(--bon)}.crit{color:var(--crit)}.s1{color:var(--s1)}
+#odds .desc{color:var(--sourdine);display:block;margin:0 0 4px 2ch;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#journal{white-space:pre}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:18px;flex:none}
+#jev,#claude{white-space:pre}
+#state{white-space:pre;text-overflow:ellipsis}
+#dialogue{height:3.1em;overflow:hidden}
+#objective{max-height:10.9em}
+#obj-src{font-size:11.5px;margin-bottom:4px;white-space:nowrap;text-overflow:ellipsis}
+.titre{white-space:nowrap;max-width:calc(100% - 28px);overflow:hidden;text-overflow:ellipsis}
+#odds .ligne{white-space:pre}
+form{display:flex;gap:8px;margin-top:12px}
+input,button{font:inherit;color:var(--encre);background:var(--panneau);border:1px dashed var(--cadre);border-radius:3px;padding:4px 10px}
+input{flex:1;min-width:0} button{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--encre-2);cursor:pointer}
+button::before{content:"◇ ";color:var(--sourdine)} button:hover{color:var(--encre);border-color:var(--encre-2)}
+@media (max-width:1239px){.grille{grid-template-columns:1fr 1fr}.col:first-child{grid-column:1/-1}}
+@media (max-width:759px){.grille{grid-template-columns:1fr}.page{padding:22px 16px}}
+@keyframes glisse{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@keyframes eclat{from{background:color-mix(in srgb,var(--s4) 28%,transparent)}to{background:transparent}}
+@keyframes pouls{50%{opacity:.35}}
+.neuf{display:inline-block;width:100%;animation:glisse .22s cubic-bezier(.215,.61,.355,1) both}
+.eclat{animation:eclat 1.2s ease-out both}
+.pouls{animation:pouls 1s ease-in-out infinite}
+#odds .ligne{transition:color .18s ease-out}
+@media (prefers-reduced-motion:reduce){.neuf,.eclat,.pouls{animation:none}#odds .ligne{transition:none}}
+</style></head><body><div class="page">
+<header><h1>Jev joue à Pokémon Bleu</h1>
+ <span class="k">joué <b id="s-time">0 s</b></span><span class="k">cartes <b id="s-maps">0</b></span>
+ <span class="k">coût total <b id="s-cost">0 $</b></span>
+ <span class="k" id="s-fix-wrap">correctifs auto du harnais <b id="s-fix">0</b></span>
+ <span class="k" id="s-view-wrap" hidden>spectateurs <b id="s-view">0</b></span>
+ <span class="badge" id="live">● EN DIRECT</span></header>
+<div class="grille">
+ <div class="col">
+  <figure class="cadre plein"><i>+</i><i>+</i><i>+</i><i>+</i><figcaption class="titre">[ Jeu ] <small id="where"></small></figcaption>
+   <canvas id="screen" width="480" height="432" aria-label="écran du jeu"></canvas>
+   <form id="goal-form"><input id="goal" placeholder="forcer un sous-objectif…"><button>fixer</button><button type="button" id="pause">pause</button><button type="button" id="speed">vitesse ×1</button></form></figure>
+  <figure class="cadre"><i>+</i><i>+</i><i>+</i><i>+</i><figcaption class="titre">[ Dernier dialogue ]</figcaption><pre id="dialogue" class="bon">—</pre></figure>
+ </div>
+ <div class="col">
+  <figure class="cadre"><i>+</i><i>+</i><i>+</i><i>+</i><figcaption class="titre">[ Objectif ]</figcaption><pre id="obj-src" class="sourdine"></pre><pre id="objective">—</pre></figure>
+  <figure class="cadre plein"><i>+</i><i>+</i><i>+</i><i>+</i><figcaption class="titre">[ Cotes de Jev ] <small id="dec-meta"></small></figcaption><pre id="odds">en attente…</pre></figure>
+ </div>
+ <div class="col">
+  <figure class="cadre"><i>+</i><i>+</i><i>+</i><i>+</i><figcaption class="titre">[ Dresseur · Équipe ]</figcaption><pre id="state">—</pre></figure>
+  <div class="duo">
+   <figure class="cadre"><i>+</i><i>+</i><i>+</i><i>+</i><figcaption class="titre">[ Jev ]</figcaption><pre id="jev">—</pre></figure>
+   <figure class="cadre"><i>+</i><i>+</i><i>+</i><i>+</i><figcaption class="titre">[ Claude ]</figcaption><pre id="claude">—</pre></figure>
+  </div>
+  <figure class="cadre plein"><i>+</i><i>+</i><i>+</i><i>+</i><figcaption class="titre">[ Journal ]</figcaption><pre id="journal"></pre></figure>
+ </div>
+</div></div>
+<script>
+const $=id=>document.getElementById(id), esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const bar=(p,w=14)=>'█'.repeat(Math.round(p*w))+'░'.repeat(w-Math.round(p*w));
+const calm=matchMedia('(prefers-reduced-motion:reduce)').matches;
+let oddsRun=0;
+function odds(c){ // three beats: the odds fill up, then Jev's pick lights up, then the move plays on screen
+  const rows=Object.entries(c.cotes).sort((a,b)=>b[1]-a[1]), w=Math.max(...rows.map(r=>r[0].length))+2, run=++oddsRun;
+  const draw=(t,picked)=>{$('odds').innerHTML=rows.map(([k,p])=>{const on=picked&&k===c.bouton;
+    return `<span class="ligne ${on?'choisi':''}">${on?'▶':' '} ${esc(k.padEnd(w))}${bar(p*t)} ${fr(p*t*100,1).padStart(5)} %</span>\n<span class="desc">${esc(c.options[k]||'')}</span>`}).join('')};
+  $('dec-meta').textContent=`${c.ms} ms · ${c.pas} bouton${c.pas>1?'s':''}${c.bloque?' · ⟲ blocage':''}`;
+  if(calm){draw(1,true);return}
+  const t0=performance.now(), tick=now=>{ if(run!==oddsRun)return; const x=Math.min(1,(now-t0)/260), ease=1-Math.pow(1-x,3);
+    draw(ease,x>=1); if(x<1)requestAnimationFrame(tick)}; requestAnimationFrame(tick);
+}
+const rolling=new Map();
+function roll(el,to,fmt){ // numbers travel to their new value instead of jumping
+  const from=rolling.get(el)??to; rolling.set(el,to);
+  if(calm||from===to){el.textContent=fmt(to);return}
+  const t0=performance.now(), step=now=>{const x=Math.min(1,(now-t0)/400); el.textContent=fmt(from+(to-from)*(1-Math.pow(1-x,3))); if(x<1&&rolling.get(el)===to)requestAnimationFrame(step)}; requestAnimationFrame(step);
+}
+let goalShown='', goalRun=0;
+function goal(text,html){ // a new objective is rare and matters: type it out, flash the frame once
+  if(text===goalShown){return} const first=!goalShown; goalShown=text; const el=$('objective'), run=++goalRun;
+  if(calm||first){el.innerHTML=html;return}
+  el.classList.remove('eclat'); void el.offsetWidth; el.classList.add('eclat');
+  let i=0; const type=()=>{ if(run!==goalRun)return; i+=3; if(i>=text.length){el.innerHTML=html;return} el.textContent=text.slice(0,i)+'▌'; setTimeout(type,12)}; type();
+}
+const fr=(v,d)=>v.toFixed(d).replace('.',','), usd=v=>(v>0&&v<0.001?fr(v,5):v<10?fr(v,4):fr(v,2))+' $', kfmt=n=>n>=1e6?fr(n/1e6,2)+' M':n>=1e3?fr(n/1e3,1)+' k':String(n);
+const dur=s=>s>=3600?Math.floor(s/3600)+' h '+String(Math.floor(s%3600/60)).padStart(2,'0')+' min':s>=60?Math.floor(s/60)+' min '+String(s%60).padStart(2,'0')+' s':s+' s';
+const row=(k,v,cls='')=>`<span class="sourdine">${k.padEnd(11)}</span><span class="${cls}">${esc(v)}</span>`;
+function state(e){
+  const s=e.etat, foe=s.combat&&s.combat.adversaire;
+  $('where').textContent=`${s.carte} · (${s.position.x}, ${s.position.y})`;
+  const team=s.equipe.map(m=>{const r=m.pv/Math.max(1,m.pv_max),cls=r>.5?'bon':r>.2?'choisi':'crit';
+    return `${esc(m.espece.padEnd(11))}<span class="sourdine">N${String(m.niveau).padEnd(3)}</span><span class="${cls}">${bar(r,10)}</span> ${String(m.pv).padStart(3)}/${m.pv_max}${m.statut?' <span class="crit">'+m.statut+'</span>':''}`});
+  $('state').innerHTML=[row('badges','●'.repeat(s.badges.length)+'○'.repeat(8-s.badges.length)+'   '+s.argent+' ¥'),
+    row('sac',s.sac.map(i=>i.nom+'×'+i.quantite).join(', ')||'vide'),
+    foe?row('adversaire',`${foe.espece} N${foe.niveau} ${foe.pv}/${foe.pv_max} PV`,'crit'):row('mode',s.menu_ouvert?'menu':'exploration'),
+    ...(team.length?team:['<span class="sourdine">aucun Pokémon</span>'])].join('\n');
+  const j=e.jev,c=e.claude;
+  $('jev').innerHTML=[row('décisions',kfmt(j.decisions)),row('coût','≈ '+usd(j.cout_usd),'choisi'),row('par décis.',usd(j.cout_usd/Math.max(1,j.decisions))),row('tokens',kfmt(j.tokens)),
+    row('latence',j.latence+' ms'),row('blocages',j.blocages+' · '+fr(j.taux_blocage,0)+' %',j.taux_blocage>20?'crit':'')].join('\n');
+  $('claude').innerHTML=c?[row('décisions',c.appels+(c.occupe?' …':'')),row('coût',usd(c.cout_usd),'choisi'),row('par décis.',usd(c.cout_usd/Math.max(1,c.appels))),row('tokens',kfmt(c.tokens_entree+c.tokens_sortie)),
+    row('latence',c.ms+' ms'),row('modèle',c.modele+(c.echecs?' · '+c.echecs+' échec(s)':''))].join('\n'):'<span class="sourdine">désactivé</span>';
+  if(e.correctifs){$('s-fix').textContent=e.correctifs.n;$('s-fix-wrap').title=e.correctifs.dernier||''}
+  $('s-time').textContent=dur(e.joue_s);$('s-maps').textContent=e.cartes;roll($('s-cost'),j.cout_usd+(c?c.cout_usd:0),usd);
+  $('claude').classList.toggle('pouls',!!(c&&c.occupe));
+  $('obj-src').textContent=(e.jalon?'jalon « '+e.jalon+' » jugé par Jev · ':'')+'formulé par '+(e.source==='carnet'?'le carnet (gratuit)':e.source);
+  goal(e.objectif,esc(e.objectif)+(e.lecons||[]).map(l=>`\n<span class="s1">leçon : ${esc(l)}</span>`).join('')+(e.zone?`\n<span class="sourdine">zone visée </span><span class="choisi">${esc(e.zone)}</span>`:'')+(e.raison?`\n<span class="sourdine">${esc(e.raison)}</span>`:''));
+}
+// Two transports, one page: the game host serves SSE + /frame on the private network; the public relay speaks WebSocket.
+const PUBLIC=new URLSearchParams(location.search).has('public')||!/^(localhost|127\.|100\.|192\.168\.|10\.)/.test(location.hostname);
+const online=on=>{$('live').textContent=on?'● EN DIRECT':'○ HORS LIGNE';$('live').style.color=on?'':'var(--crit)'};
+function handle(e){
+  const J=$('journal');
+  if('spectateurs' in e){$('s-view-wrap').hidden=false;$('s-view').textContent=e.spectateurs;if(e.source===false)online(false);return}
+  if(e.erreur){J.insertAdjacentHTML('afterbegin',`<span class="crit">   ! ${esc(e.erreur)}</span>\n`);
+    if(e.hors_ligne){$('live').textContent='○ JEV INJOIGNABLE';$('live').style.color='var(--crit)'}return}
+  if(e.decision){odds(e.decision);return}
+  const c=e.coup; state(e);
+  if(!e.hors_ligne){$('live').textContent='● EN DIRECT';$('live').style.color=''}
+  if(c.dialogue) $('dialogue').textContent=c.dialogue.replaceAll(' / ','\n');
+  const n=String(e.n).padStart(4), where=`<span class="sourdine">${esc(c.carte)} (${c.position.x},${c.position.y})</span>`;
+  const t=new Date(e.t?e.t*1000:Date.now()).toLocaleTimeString('fr-FR');
+  if(c.auto){ // one line per page of text, like a transcript of what Jev was shown
+    const pages=(c.dialogue||'').split(' / ').filter(Boolean);
+    J.insertAdjacentHTML('afterbegin',(pages.length?pages:['…']).reverse().map(p=>`<span class="neuf"><span class="sourdine">${t} ·  A  </span><span class="bon">${esc(p)}</span></span>\n`).join(''));
+  } else {
+    J.insertAdjacentHTML('afterbegin',`<span class="neuf"><span class="sourdine">${t} ◆ </span><span class="${c.bloque||c.echec?'crit':'choisi'}">${esc(c.bouton.padEnd(11))}</span>${bar(c.confiance,6)} ${fr(c.confiance*100,0).padStart(3)} % <span class="sourdine">${esc((c.options[c.bouton]||'').slice(0,70))} · ${c.ms} ms</span></span>\n`+(c.echec?`<span class="crit">${t} ✖ ${esc(c.echec)}</span>\n`:''));
+  }
+  while(J.childNodes.length>240)J.lastChild.remove();
+}
+if(PUBLIC){
+  document.getElementById('goal-form').remove();            // spectators watch; nothing they send reaches the game
+  const ctx=$('screen').getContext('2d'); ctx.imageSmoothingEnabled=false; let wait=1000;
+  (function connect(){
+    const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws'); ws.binaryType='arraybuffer';
+    ws.onopen=()=>{wait=1000;online(true)};
+    ws.onclose=()=>{online(false);setTimeout(connect,wait);wait=Math.min(wait*2,30000)};
+    ws.onmessage=async m=>{
+      if(typeof m.data==='string'){handle(JSON.parse(m.data));return}
+      const bmp=await createImageBitmap(new Blob([m.data],{type:'image/png'})); ctx.imageSmoothingEnabled=false; ctx.drawImage(bmp,0,0,480,432); bmp.close()};
+  })();
+} else {
+(async function frames(){
+  const ctx=$('screen').getContext('2d');
+  for(;;){try{const r=await fetch('/frame?'+Date.now(),{cache:'no-store'});
+      const bmp=await createImageBitmap(await r.blob());ctx.drawImage(bmp,0,0);bmp.close()}
+    catch(_){await new Promise(ok=>setTimeout(ok,500))}}
+})();
+const es=new EventSource('/events');
+es.onerror=()=>online(false); es.onopen=()=>online(true);
+es.onmessage=m=>handle(JSON.parse(m.data));
+if(!PUBLIC){
+$('goal-form').onsubmit=ev=>{ev.preventDefault();const v=$('goal').value.trim();if(v)fetch('/goal',{method:'POST',body:v});$('goal').value=''};
+$('pause').onclick=()=>fetch('/pause',{method:'POST'});
+let sp=1;$('speed').onclick=()=>{fetch('/speed',{method:'POST'});sp={1:3,3:0,0:1}[sp];$('speed').textContent='vitesse '+(sp?'×'+sp:'max')};
+}
+}
+</script></body></html>
